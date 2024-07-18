@@ -471,7 +471,6 @@ function NIFTI_NORDIC(fn_magn_in, fn_phase_in, fn_out, ARG)
     KSP2(isinf(KSP2)) = 0;
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     if ARG.noise_volume_last > 0
-        %tmp_noise=KSP2(:,:,:,end+1-ARG.noise_volume_last);
         tmp_noise = KSP2_NOISE;
 
         tmp_noise(isnan(tmp_noise)) = 0;
