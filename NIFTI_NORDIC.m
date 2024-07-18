@@ -757,407 +757,407 @@ function NIFTI_NORDIC(fn_magn_in, fn_phase_in, fn_out, ARG)
 
     end
 
-    return
+end
 
-    function [KSP_recon, KSP2, KSP2_weight, NOISE, Component_threshold, energy_removed, SNR_weight] = sub_LLR_Processing(KSP_recon, KSP2, ARG, n1, QQ, master, KSP2_weight, NOISE, Component_threshold, energy_removed, SNR_weight)
+function [KSP_recon, KSP2, KSP2_weight, NOISE, Component_threshold, energy_removed, SNR_weight] = sub_LLR_Processing(KSP_recon, KSP2, ARG, n1, QQ, master, KSP2_weight, NOISE, Component_threshold, energy_removed, SNR_weight)
 
-        if ~exist('NOISE')
-            NOISE = [];
+    if ~exist('NOISE')
+        NOISE = [];
+    end
+
+    if ~exist('Component_threshold')
+        Component_threshold = [];
+    end
+
+    if ~exist('energy_removed')
+        energy_removed = [];
+    end
+
+    if ~exist('SNR_weight')
+        SNR_weight = [];
+    end
+
+    %  QQ.KSP_processed  0 nothing done, 1 running, 2 saved 3 completed and  averaged
+
+    if master == 0 && ARG.patch_average == 0
+        OPTION = 'NO_master_NO_PA';
+
+    elseif master == 0 && ARG.patch_average == 1
+        OPTION = 'NO_master_PA';
+
+    elseif master == 1 && ARG.patch_average == 0
+        OPTION = 'master_NO_PA';
+
+    elseif master == 1 && ARG.patch_average == 1
+        OPTION = 'master_PA';
+
+    end
+
+    switch OPTION
+
+        case 'NO_master_NO_PA'
+
+        case 'NO_master_PA'
+
+        case 'master_NO_PA'
+
+        case 'master_PA'
+
+    end
+
+    if QQ.KSP_processed(1, n1) ~= 1 && QQ.KSP_processed(1, n1) ~= 3 % not being processed also not completed yet
+
+        if QQ.KSP_processed(1, n1) == 2 && master == 1 %  processed but not added.
+            % loading instead of processing
+            % load file as soon as save, if more than 10 sec, just do the recon
+            % instead.
+            try % try to load otherwise go to next slice
+                load([ARG.filename 'slice' num2str(n1) '.mat'], 'DATA_full2')
+            catch
+                QQ.KSP_processed(1, n1) = 0; % identified as bad file and being identified for reprocessing
+                return
+            end
+
         end
 
-        if ~exist('Component_threshold')
-            Component_threshold = [];
-        end
+        if QQ.KSP_processed(1, n1) ~= 2
+            QQ.KSP_processed(1, n1) = 1; % block for other processes
 
-        if ~exist('energy_removed')
-            energy_removed = [];
-        end
+            if ~exist('DATA_full2')
+                ARG2 = QQ.ARG;
 
-        if ~exist('SNR_weight')
-            SNR_weight = [];
-        end
+                if master == 0
+                    QQ.KSP_processed(1, n1) = 1; % STARTING
+                    KSP2a = QQ.KSP2([1:ARG.kernel_size(1)] + (n1 - 1), :, :, :); lambda = ARG2.LLR_scale * ARG.NVR_threshold;
+                else
+                    QQ.KSP_processed(1, n1) = 1; % STARTING
+                    KSP2a = KSP2([1:ARG.kernel_size(1)] + (n1 - 1), :, :, :); lambda = ARG2.LLR_scale * ARG.NVR_threshold;
 
-        %  QQ.KSP_processed  0 nothing done, 1 running, 2 saved 3 completed and  averaged
+                end
 
-        if master == 0 && ARG.patch_average == 0
-            OPTION = 'NO_master_NO_PA';
+                if ARG.patch_average == 1
+                    %  [DATA_full2, ~,NOISE, Component_threshold] =subfunction_loop_for_NVR_avg(KSP2a,ARG.kernel_size(3),ARG.kernel_size(2),ARG.kernel_size(1),lambda,1,ARG.soft_thrs);
+                    [DATA_full2, KSP2_weight] = subfunction_loop_for_NVR_avg(KSP2a, ARG.kernel_size(3), ARG.kernel_size(2), ARG.kernel_size(1), lambda, 1, ARG.soft_thrs, KSP2_weight);
+                else
 
-        elseif master == 0 && ARG.patch_average == 1
-            OPTION = 'NO_master_PA';
+                    KSP2_weight_tmp = KSP2_weight([1:ARG.kernel_size(1)] + (n1 - 1), :, :, :);
+                    NOISE_tmp = NOISE([1:ARG.kernel_size(1)] + (n1 - 1), :, :, :);
+                    Component_threshold_tmp = Component_threshold([1:ARG.kernel_size(1)] + (n1 - 1), :, :, :);
+                    energy_removed_tmp = energy_removed([1:ARG.kernel_size(1)] + (n1 - 1), :, :, :);
+                    SNR_weight_tmp = SNR_weight([1:ARG.kernel_size(1)] + (n1 - 1), :, :, :);
 
-        elseif master == 1 && ARG.patch_average == 0
-            OPTION = 'master_NO_PA';
+                    [DATA_full2, KSP2_weight_tmp, NOISE_tmp, Component_threshold_tmp, energy_removed_tmp, SNR_weight_tmp] = ...
+                        subfunction_loop_for_NVR_avg_update(KSP2a, ARG.kernel_size(3), ARG.kernel_size(2), ARG.kernel_size(1), lambda, 1, ARG.soft_thrs, KSP2_weight_tmp, ARG, NOISE_tmp, Component_threshold_tmp, energy_removed_tmp, SNR_weight_tmp);
 
-        elseif master == 1 && ARG.patch_average == 1
-            OPTION = 'master_PA';
+                    KSP2_weight([1:ARG.kernel_size(1)] + (n1 - 1), :, :, :) = KSP2_weight_tmp;
 
-        end
+                    try
+                        NOISE([1:ARG.kernel_size(1)] + (n1 - 1), :, :, :) = NOISE_tmp;
+                    catch
+                    end
 
-        switch OPTION
-
-            case 'NO_master_NO_PA'
-
-            case 'NO_master_PA'
-
-            case 'master_NO_PA'
-
-            case 'master_PA'
-
-        end
-
-        if QQ.KSP_processed(1, n1) ~= 1 && QQ.KSP_processed(1, n1) ~= 3 % not being processed also not completed yet
-
-            if QQ.KSP_processed(1, n1) == 2 && master == 1 %  processed but not added.
-                % loading instead of processing
-                % load file as soon as save, if more than 10 sec, just do the recon
-                % instead.
-                try % try to load otherwise go to next slice
-                    load([ARG.filename 'slice' num2str(n1) '.mat'], 'DATA_full2')
-                catch
-                    QQ.KSP_processed(1, n1) = 0; % identified as bad file and being identified for reprocessing
-                    return
+                    Component_threshold([1:ARG.kernel_size(1)] + (n1 - 1), :, :, :) = Component_threshold_tmp;
+                    energy_removed([1:ARG.kernel_size(1)] + (n1 - 1), :, :, :) = energy_removed_tmp;
+                    SNR_weight([1:ARG.kernel_size(1)] + (n1 - 1), :, :, :) = SNR_weight_tmp;
+                    %DATA_full=subfunction_loop_for_NVR(KSP2a,ARG.kernel_size(3),ARG.kernel_size(2),ARG.kernel_size(1),lambda);
+                    %DATA_full2(1, round(w2/2)+[1:size(DATA_full,1)],:,:  )=DATA_full;  % center plane only
                 end
 
             end
+
+        end
+
+        if master == 0
 
             if QQ.KSP_processed(1, n1) ~= 2
-                QQ.KSP_processed(1, n1) = 1; % block for other processes
+                save([ARG.filename 'slice' num2str(n1) '.mat'], 'DATA_full2', '-v7.3')
+                QQ.KSP_processed(1, n1) = 2; % COMPLETED
+            end
 
-                if ~exist('DATA_full2')
-                    ARG2 = QQ.ARG;
+        else
 
-                    if master == 0
-                        QQ.KSP_processed(1, n1) = 1; % STARTING
-                        KSP2a = QQ.KSP2([1:ARG.kernel_size(1)] + (n1 - 1), :, :, :); lambda = ARG2.LLR_scale * ARG.NVR_threshold;
-                    else
-                        QQ.KSP_processed(1, n1) = 1; % STARTING
-                        KSP2a = KSP2([1:ARG.kernel_size(1)] + (n1 - 1), :, :, :); lambda = ARG2.LLR_scale * ARG.NVR_threshold;
+            if ARG.patch_average == 1
+                tmp = KSP_recon([1:ARG.kernel_size(1)] + (n1 - 1), :, :, :);
+                KSP_recon([1:ARG.kernel_size(1)] + (n1 - 1), :, :, :) = tmp + DATA_full2;
+            else
+                KSP_recon([1:ARG.kernel_size(1)] + (n1 - 1), 1:size(DATA_full2, 2), :, :) = KSP_recon([1:ARG.kernel_size(1)] + (n1 - 1), 1:size(DATA_full2, 2), :, :) + DATA_full2;
+            end
 
-                    end
+            QQ.KSP_processed(1, n1) = 3;
+        end
 
-                    if ARG.patch_average == 1
-                        %  [DATA_full2, ~,NOISE, Component_threshold] =subfunction_loop_for_NVR_avg(KSP2a,ARG.kernel_size(3),ARG.kernel_size(2),ARG.kernel_size(1),lambda,1,ARG.soft_thrs);
-                        [DATA_full2, KSP2_weight] = subfunction_loop_for_NVR_avg(KSP2a, ARG.kernel_size(3), ARG.kernel_size(2), ARG.kernel_size(1), lambda, 1, ARG.soft_thrs, KSP2_weight);
-                    else
+    end
 
-                        KSP2_weight_tmp = KSP2_weight([1:ARG.kernel_size(1)] + (n1 - 1), :, :, :);
-                        NOISE_tmp = NOISE([1:ARG.kernel_size(1)] + (n1 - 1), :, :, :);
-                        Component_threshold_tmp = Component_threshold([1:ARG.kernel_size(1)] + (n1 - 1), :, :, :);
-                        energy_removed_tmp = energy_removed([1:ARG.kernel_size(1)] + (n1 - 1), :, :, :);
-                        SNR_weight_tmp = SNR_weight([1:ARG.kernel_size(1)] + (n1 - 1), :, :, :);
+end
 
-                        [DATA_full2, KSP2_weight_tmp, NOISE_tmp, Component_threshold_tmp, energy_removed_tmp, SNR_weight_tmp] = ...
-                            subfunction_loop_for_NVR_avg_update(KSP2a, ARG.kernel_size(3), ARG.kernel_size(2), ARG.kernel_size(1), lambda, 1, ARG.soft_thrs, KSP2_weight_tmp, ARG, NOISE_tmp, Component_threshold_tmp, energy_removed_tmp, SNR_weight_tmp);
+function [KSP2_tmp_update, KSP2_weight] = subfunction_loop_for_NVR_avg(KSP2a, w3, w2, w1, lambda2, patch_avg, soft_thrs, KSP2_weight, ARG)
 
-                        KSP2_weight([1:ARG.kernel_size(1)] + (n1 - 1), :, :, :) = KSP2_weight_tmp;
+    if ~exist('patch_avg')
+        patch_avg = 1;
+    end
 
-                        try
-                            NOISE([1:ARG.kernel_size(1)] + (n1 - 1), :, :, :) = NOISE_tmp;
-                        catch
-                        end
+    if ~exist('soft_thrs')
+        soft_thrs = [];
+    end
 
-                        Component_threshold([1:ARG.kernel_size(1)] + (n1 - 1), :, :, :) = Component_threshold_tmp;
-                        energy_removed([1:ARG.kernel_size(1)] + (n1 - 1), :, :, :) = energy_removed_tmp;
-                        SNR_weight([1:ARG.kernel_size(1)] + (n1 - 1), :, :, :) = SNR_weight_tmp;
-                        %DATA_full=subfunction_loop_for_NVR(KSP2a,ARG.kernel_size(3),ARG.kernel_size(2),ARG.kernel_size(1),lambda);
-                        %DATA_full2(1, round(w2/2)+[1:size(DATA_full,1)],:,:  )=DATA_full;  % center plane only
-                    end
+    if ~exist('KSP2_weight')
+        KSP2_weight = zeros(size(KSP2a(:, :, :, 1)));
+    elseif isempty(KSP2_weight)
+        KSP2_weight = zeros(size(KSP2a(:, :, :, 1)));
+    end
 
-                end
+    if ~exist('KSP2_tmp_update')
+        KSP2_tmp_update = zeros(size(KSP2a(:, :, :, :)));
+    elseif isempty(KSP2_tmp_update)
+        KSP2_tmp_update = zeros(size(KSP2a(:, :, :, :)));
+    end
+
+    %   KSP2_weight=zeros(size(KSP2a(:,:,:,1)));
+    %   KSP2_tmp_update=zeros(size(KSP2a));
+
+    %   for n2=1:size(KSP2a,2)-w2+1;
+    %        for n3=1:size(KSP2a,3)-w3+1;
+    for n2 = [1:max(1, floor(w2 / ARG.patch_average_sub)):size(KSP2a, 2) * 1 - w2 + 1 size(KSP2a, 2) - w2 + 1];
+
+        for n3 = [1:max(1, floor(w3 / ARG.patch_average_sub)):size(KSP2a, 3) * 1 - w3 + 1 size(KSP2a, 3) - w3 + 1];
+
+            KSP2_tmp = KSP2a(:, [1:w2] + (n2 - 1), [1:w3] + (n3 - 1), :);
+            tmp1 = reshape(KSP2_tmp, [], size(KSP2_tmp, 4));
+
+            [U, S, V] = svd([(tmp1)], 'econ');
+            S = diag(S);
+
+            [idx] = sum(S < lambda2);
+
+            if isempty(soft_thrs)
+                S(S < lambda2) = 0;
+            elseif soft_thrs == 10 % USING MPPCA
+
+                %  disp('test for zero entries')
+                Test_mat = sum(tmp1, 2);
+                sum(Test_mat == 0)
+
+                centering = 0;
+                MM = size(tmp1, 1);
+                NNN = size(tmp1, 2);
+                R = min(MM, NNN);
+                scaling = (max(MM, NNN) - (0:R - centering - 1)) / NNN;
+                scaling = scaling(:);
+                vals = S;
+                vals = (vals) .^ 2 / NNN;
+                % First estimation of Sigma^2;  Eq 1 from ISMRM presentation
+                csum = cumsum(vals(R - centering:-1:1)); cmean = csum(R - centering:-1:1) ./ (R - centering:-1:1)'; sigmasq_1 = cmean ./ scaling;
+                % Second estimation of Sigma^2; Eq 2 from ISMRM presentation
+                gamma = (MM - (0:R - centering - 1)) / NNN;
+                rangeMP = 4 * sqrt(gamma(:));
+                rangeData = vals(1:R - centering) - vals(R - centering);
+                sigmasq_2 = rangeData ./ rangeMP;
+                t = find(sigmasq_2 < sigmasq_1, 1);
+                S(t:end) = 0;
+
+            else
+                S(max(1, end - floor(idx * soft_thrs)):end) = 0;
+            end
+
+            tmp1 = U * diag(S) * V';
+
+            tmp1 = reshape(tmp1, size(KSP2_tmp));
+
+            if patch_avg == 1
+
+                KSP2_tmp_update(:, [1:w2] + (n2 - 1), [1:w3] + (n3 - 1), :) = ...
+                    KSP2_tmp_update(:, [1:w2] + (n2 - 1), [1:w3] + (n3 - 1), :) +tmp1;
+                KSP2_weight(:, [1:w2] + (n2 - 1), [1:w3] + (n3 - 1), :) = ...
+                    KSP2_weight(:, [1:w2] + (n2 - 1), [1:w3] + (n3 - 1), :) +1;
+            else
+                KSP2_tmp_update(:, round(w2 / 2) + (n2 - 1), round(w3 / 2) + (n3 - 1), :) = ...
+                    KSP2_tmp_update(:, round(w2 / 2) + (n2 - 1), round(w3 / 2) + (n3 - 1), :) +tmp1(1, round(end / 2), round(end / 2), :);
+                KSP2_weight(:, round(w2 / 2) + (n2 - 1), round(w3 / 2) + (n3 - 1), :) = ...
+                    KSP2_weight(:, round(w2 / 2) + (n2 - 1), round(w3 / 2) + (n3 - 1), :) +1;
 
             end
 
-            if master == 0
+        end
 
-                if QQ.KSP_processed(1, n1) ~= 2
-                    save([ARG.filename 'slice' num2str(n1) '.mat'], 'DATA_full2', '-v7.3')
-                    QQ.KSP_processed(1, n1) = 2; % COMPLETED
+    end
+
+end
+
+function [KSP2_tmp_update, KSP2_weight, NOISE, KSP2_tmp_update_threshold, energy_removed, SNR_weight] = subfunction_loop_for_NVR_avg_update(KSP2a, w3, w2, w1, lambda2, patch_avg, soft_thrs, KSP2_weight, ARG, NOISE, KSP2_tmp_update_threshold, energy_removed, SNR_weight)
+
+    if ~isfield(ARG, 'patch_scale')
+        patch_scale = 1;
+    else
+        patch_scale = ARG.patch_scale;
+    end
+
+    if ~exist('patch_avg')
+        patch_avg = 1;
+    end %   patch_avg=0; means zero only
+
+    if ~exist('soft_thrs')
+        soft_thrs = [];
+    end
+
+    if ~exist('KSP2_weight')
+        KSP2_weight = zeros(size(KSP2a(:, :, :, 1)));
+    elseif isempty(KSP2_weight)
+        KSP2_weight = zeros(size(KSP2a(:, :, :, 1)));
+    end
+
+    if ~exist('NOISE_tmp')' %  ~exist('NOISE_tmpKSP2_tmp_update')
+        NOISE_tmp = zeros(size(KSP2a(:, :, :, 1)));
+    elseif isempty(KSP2_tmp_update)
+        NOISE_tmp = zeros(size(KSP2a(:, :, :, 1)));
+    end
+
+    if ~exist('KSP2_tmp_update_threshold')
+        KSP2_tmp_update_threshold = zeros(size(KSP2a(:, :, :, 1)));
+    elseif isempty(KSP2_tmp_update_threshold)
+        KSP2_tmp_update_threshold = zeros(size(KSP2a(:, :, :, 1)));
+    end
+
+    if ~exist('energy_removed')
+        energy_removed = zeros(size(KSP2a(:, :, :, 1)));
+    elseif isempty(energy_removed)
+        energy_removed = zeros(size(KSP2a(:, :, :, 1)));
+    end
+
+    if ~exist('SNR_weight')
+        SNR_weight = zeros(size(KSP2a(:, :, :, 1)));
+    elseif isempty(SNR_weight)
+        SNR_weight = zeros(size(KSP2a(:, :, :, 1)));
+    end
+
+    KSP2_tmp_update = 0 * KSP2a;
+    %NOISE=[];
+
+    for n2 = [1:max(1, floor(w2 / ARG.patch_average_sub)):size(KSP2a, 2) * 1 - w2 + 1 size(KSP2a, 2) - w2 + 1];
+
+        for n3 = [1:max(1, floor(w3 / ARG.patch_average_sub)):size(KSP2a, 3) * 1 - w3 + 1 size(KSP2a, 3) - w3 + 1];
+
+            KSP2_tmp = KSP2a(:, [1:w2] + (n2 - 1), [1:w3] + (n3 - 1), :);
+            tmp1 = reshape(KSP2_tmp, [], size(KSP2_tmp, 4));
+
+            [U, S, V] = svd([(tmp1)], 'econ');
+            S = diag(S);
+
+            [idx] = sum(S < lambda2);
+
+            if isempty(soft_thrs)
+                energy_scrub = sqrt(sum(S .^ 1)). \ sqrt(sum(S(S < lambda2) .^ 1));
+                S(S < lambda2) = 0;
+                t = idx;
+            elseif soft_thrs ~= 10;
+
+                S = S - lambda2 * soft_thrs;
+                S(S < 0) = 0;
+                energy_scrub = 0;
+                t = 1;
+
+            elseif soft_thrs == 10 % USING MPPCA
+
+                %  disp('test for zero entries')
+                Test_mat = sum(tmp1, 2);
+                MM0 = sum(Test_mat == 0);
+
+                if MM0 > 1 & MM0 < 100
+                    %  2
+                end
+
+                centering = 0;
+                MM = size(tmp1, 1) - MM0; % Correction for some zero entries
+
+                if MM > 0
+                    NNN = size(tmp1, 2);
+                    R = min(MM, NNN);
+                    scaling = (max(MM, NNN) - (0:R - centering - 1)) / NNN;
+                    scaling = scaling(:);
+                    vals = S;
+                    vals = (vals) .^ 2 / NNN;
+                    % First estimation of Sigma^2;  Eq 1 from ISMRM presentation
+                    csum = cumsum(vals(R - centering:-1:1)); cmean = csum(R - centering:-1:1) ./ (R - centering:-1:1)'; sigmasq_1 = cmean ./ scaling;
+                    % Second estimation of Sigma^2; Eq 2 from ISMRM presentation
+                    gamma = (MM - (0:R - centering - 1)) / NNN;
+                    rangeMP = 4 * sqrt(gamma(:));
+                    rangeData = vals(1:R - centering) - vals(R - centering);
+                    sigmasq_2 = rangeData ./ rangeMP;
+                    t = find(sigmasq_2 < sigmasq_1, 1);
+                    % NOISE(1:size(KSP2a,1),[1:w2]+(n2-1),[1:w3]+(n3-1),1) = sigmasq_2(t);
+                    idx = size(S(t:end), 1);
+                    energy_scrub = sqrt(sum(S .^ 1)). \ sqrt(sum(S(t:end) .^ 1));
+                    S(t:end) = 0;
+                else % all zero entries
+                    t = 1;
+                    energy_scrub = 0;
+                    sigmasq_2 = 0;
                 end
 
             else
+                S(max(1, end - floor(idx * soft_thrs)):end) = 0;
+            end
 
-                if ARG.patch_average == 1
-                    tmp = KSP_recon([1:ARG.kernel_size(1)] + (n1 - 1), :, :, :);
-                    KSP_recon([1:ARG.kernel_size(1)] + (n1 - 1), :, :, :) = tmp + DATA_full2;
-                else
-                    KSP_recon([1:ARG.kernel_size(1)] + (n1 - 1), 1:size(DATA_full2, 2), :, :) = KSP_recon([1:ARG.kernel_size(1)] + (n1 - 1), 1:size(DATA_full2, 2), :, :) + DATA_full2;
+            tmp1 = U * diag(S) * V';
+
+            tmp1 = reshape(tmp1, size(KSP2_tmp));
+
+            if patch_scale == 1
+            else
+                patch_scale = size(S, 1) - idx;
+            end
+
+            if isempty(t)
+                t = 1;
+            end % threshold removed all.
+
+            if patch_avg == 1
+
+                KSP2_tmp_update(:, [1:w2] + (n2 - 1), [1:w3] + (n3 - 1), :) = ...
+                    KSP2_tmp_update(:, [1:w2] + (n2 - 1), [1:w3] + (n3 - 1), :) +patch_scale * tmp1;
+                KSP2_weight(:, [1:w2] + (n2 - 1), [1:w3] + (n3 - 1), :) = ...
+                    KSP2_weight(:, [1:w2] + (n2 - 1), [1:w3] + (n3 - 1), :) + patch_scale;
+                KSP2_tmp_update_threshold(:, [1:w2] + (n2 - 1), [1:w3] + (n3 - 1), :) = ...
+                    KSP2_tmp_update_threshold(:, [1:w2] + (n2 - 1), [1:w3] + (n3 - 1), :) +idx;
+                energy_removed(:, [1:w2] + (n2 - 1), [1:w3] + (n3 - 1), :) = ...
+                    energy_removed(:, [1:w2] + (n2 - 1), [1:w3] + (n3 - 1), :) +energy_scrub;
+
+                SNR_weight(:, [1:w2] + (n2 - 1), [1:w3] + (n3 - 1), 1) = ...
+                    SNR_weight(:, [1:w2] + (n2 - 1), [1:w3] + (n3 - 1), 1) + S(1) ./ S(max(1, t - 1));
+
+                try
+                    NOISE(1:size(KSP2a, 1), [1:w2] + (n2 - 1), [1:w3] + (n3 - 1), 1) = ...
+                        NOISE(1:size(KSP2a, 1), [1:w2] + (n2 - 1), [1:w3] + (n3 - 1), 1) + sigmasq_2(t);
+                catch
                 end
 
-                QQ.KSP_processed(1, n1) = 3;
+            else
+                KSP2_tmp_update(:, round(w2 / 2) + (n2 - 1), round(w3 / 2) + (n3 - 1), :) = ...
+                    KSP2_tmp_update(:, round(w2 / 2) + (n2 - 1), round(w3 / 2) + (n3 - 1), :) +patch_scale * tmp1(1, round(end / 2), round(end / 2), :);
+                KSP2_weight(:, round(w2 / 2) + (n2 - 1), round(w3 / 2) + (n3 - 1), :) = ...
+                    KSP2_weight(:, round(w2 / 2) + (n2 - 1), round(w3 / 2) + (n3 - 1), :) +patch_scale;
+                KSP2_tmp_update_threshold(:, round(w2 / 2) + (n2 - 1), round(w3 / 2) + (n3 - 1), :) = ...
+                    KSP2_tmp_update_threshold(:, round(w2 / 2) + (n2 - 1), round(w3 / 2) + (n3 - 1), :) +idx;
+                energy_removed(:, round(w2 / 2) + (n2 - 1), round(w3 / 2) + (n3 - 1), :) = ...
+                    energy_removed(:, round(w2 / 2) + (n2 - 1), round(w3 / 2) + (n3 - 1), :) +energy_scrub;
+
+                SNR_weight(:, round(w2 / 2) + (n2 - 1), round(w3 / 2) + (n3 - 1), 1) = ...
+                    SNR_weight(:, round(w2 / 2) + (n2 - 1), round(w3 / 2) + (n3 - 1), 1) + S(1) ./ S(max(1, t - 1));
+
+                try
+                    NOISE(:, round(w2 / 2) + (n2 - 1), round(w3 / 2) + (n3 - 1), :) = ...
+                        NOISE(:, round(w2 / 2) + (n2 - 1), round(w3 / 2) + (n3 - 1), :) + sigmasq_2(t);
+                catch
+                end
+
             end
+
+            %            if MM0>1  & MM0<196
+
+            %   [  sigmasq_2(t) MM0] %  2
+            %            end
 
         end
 
-        return
+    end
 
-        function [KSP2_tmp_update, KSP2_weight] = subfunction_loop_for_NVR_avg(KSP2a, w3, w2, w1, lambda2, patch_avg, soft_thrs, KSP2_weight, ARG)
-
-            if ~exist('patch_avg')
-                patch_avg = 1;
-            end
-
-            if ~exist('soft_thrs')
-                soft_thrs = [];
-            end
-
-            if ~exist('KSP2_weight')
-                KSP2_weight = zeros(size(KSP2a(:, :, :, 1)));
-            elseif isempty(KSP2_weight)
-                KSP2_weight = zeros(size(KSP2a(:, :, :, 1)));
-            end
-
-            if ~exist('KSP2_tmp_update')
-                KSP2_tmp_update = zeros(size(KSP2a(:, :, :, :)));
-            elseif isempty(KSP2_tmp_update)
-                KSP2_tmp_update = zeros(size(KSP2a(:, :, :, :)));
-            end
-
-            %   KSP2_weight=zeros(size(KSP2a(:,:,:,1)));
-            %   KSP2_tmp_update=zeros(size(KSP2a));
-
-            %   for n2=1:size(KSP2a,2)-w2+1;
-            %        for n3=1:size(KSP2a,3)-w3+1;
-            for n2 = [1:max(1, floor(w2 / ARG.patch_average_sub)):size(KSP2a, 2) * 1 - w2 + 1 size(KSP2a, 2) - w2 + 1];
-
-                for n3 = [1:max(1, floor(w3 / ARG.patch_average_sub)):size(KSP2a, 3) * 1 - w3 + 1 size(KSP2a, 3) - w3 + 1];
-
-                    KSP2_tmp = KSP2a(:, [1:w2] + (n2 - 1), [1:w3] + (n3 - 1), :);
-                    tmp1 = reshape(KSP2_tmp, [], size(KSP2_tmp, 4));
-
-                    [U, S, V] = svd([(tmp1)], 'econ');
-                    S = diag(S);
-
-                    [idx] = sum(S < lambda2);
-
-                    if isempty(soft_thrs)
-                        S(S < lambda2) = 0;
-                    elseif soft_thrs == 10 % USING MPPCA
-
-                        %  disp('test for zero entries')
-                        Test_mat = sum(tmp1, 2);
-                        sum(Test_mat == 0)
-
-                        centering = 0;
-                        MM = size(tmp1, 1);
-                        NNN = size(tmp1, 2);
-                        R = min(MM, NNN);
-                        scaling = (max(MM, NNN) - (0:R - centering - 1)) / NNN;
-                        scaling = scaling(:);
-                        vals = S;
-                        vals = (vals) .^ 2 / NNN;
-                        % First estimation of Sigma^2;  Eq 1 from ISMRM presentation
-                        csum = cumsum(vals(R - centering:-1:1)); cmean = csum(R - centering:-1:1) ./ (R - centering:-1:1)'; sigmasq_1 = cmean ./ scaling;
-                        % Second estimation of Sigma^2; Eq 2 from ISMRM presentation
-                        gamma = (MM - (0:R - centering - 1)) / NNN;
-                        rangeMP = 4 * sqrt(gamma(:));
-                        rangeData = vals(1:R - centering) - vals(R - centering);
-                        sigmasq_2 = rangeData ./ rangeMP;
-                        t = find(sigmasq_2 < sigmasq_1, 1);
-                        S(t:end) = 0;
-
-                    else
-                        S(max(1, end - floor(idx * soft_thrs)):end) = 0;
-                    end
-
-                    tmp1 = U * diag(S) * V';
-
-                    tmp1 = reshape(tmp1, size(KSP2_tmp));
-
-                    if patch_avg == 1
-
-                        KSP2_tmp_update(:, [1:w2] + (n2 - 1), [1:w3] + (n3 - 1), :) = ...
-                            KSP2_tmp_update(:, [1:w2] + (n2 - 1), [1:w3] + (n3 - 1), :) +tmp1;
-                        KSP2_weight(:, [1:w2] + (n2 - 1), [1:w3] + (n3 - 1), :) = ...
-                            KSP2_weight(:, [1:w2] + (n2 - 1), [1:w3] + (n3 - 1), :) +1;
-                    else
-                        KSP2_tmp_update(:, round(w2 / 2) + (n2 - 1), round(w3 / 2) + (n3 - 1), :) = ...
-                            KSP2_tmp_update(:, round(w2 / 2) + (n2 - 1), round(w3 / 2) + (n3 - 1), :) +tmp1(1, round(end / 2), round(end / 2), :);
-                        KSP2_weight(:, round(w2 / 2) + (n2 - 1), round(w3 / 2) + (n3 - 1), :) = ...
-                            KSP2_weight(:, round(w2 / 2) + (n2 - 1), round(w3 / 2) + (n3 - 1), :) +1;
-
-                    end
-
-                end
-
-            end
-
-            return
-
-            function [KSP2_tmp_update, KSP2_weight, NOISE, KSP2_tmp_update_threshold, energy_removed, SNR_weight] = subfunction_loop_for_NVR_avg_update(KSP2a, w3, w2, w1, lambda2, patch_avg, soft_thrs, KSP2_weight, ARG, NOISE, KSP2_tmp_update_threshold, energy_removed, SNR_weight)
-
-                if ~isfield(ARG, 'patch_scale')
-                    patch_scale = 1;
-                else
-                    patch_scale = ARG.patch_scale;
-                end
-
-                if ~exist('patch_avg')
-                    patch_avg = 1;
-                end %   patch_avg=0; means zero only
-
-                if ~exist('soft_thrs')
-                    soft_thrs = [];
-                end
-
-                if ~exist('KSP2_weight')
-                    KSP2_weight = zeros(size(KSP2a(:, :, :, 1)));
-                elseif isempty(KSP2_weight)
-                    KSP2_weight = zeros(size(KSP2a(:, :, :, 1)));
-                end
-
-                if ~exist('NOISE_tmp')' %  ~exist('NOISE_tmpKSP2_tmp_update')
-                    NOISE_tmp = zeros(size(KSP2a(:, :, :, 1)));
-                elseif isempty(KSP2_tmp_update)
-                    NOISE_tmp = zeros(size(KSP2a(:, :, :, 1)));
-                end
-
-                if ~exist('KSP2_tmp_update_threshold')
-                    KSP2_tmp_update_threshold = zeros(size(KSP2a(:, :, :, 1)));
-                elseif isempty(KSP2_tmp_update_threshold)
-                    KSP2_tmp_update_threshold = zeros(size(KSP2a(:, :, :, 1)));
-                end
-
-                if ~exist('energy_removed')
-                    energy_removed = zeros(size(KSP2a(:, :, :, 1)));
-                elseif isempty(energy_removed)
-                    energy_removed = zeros(size(KSP2a(:, :, :, 1)));
-                end
-
-                if ~exist('SNR_weight')
-                    SNR_weight = zeros(size(KSP2a(:, :, :, 1)));
-                elseif isempty(SNR_weight)
-                    SNR_weight = zeros(size(KSP2a(:, :, :, 1)));
-                end
-
-                KSP2_tmp_update = 0 * KSP2a;
-                %NOISE=[];
-
-                for n2 = [1:max(1, floor(w2 / ARG.patch_average_sub)):size(KSP2a, 2) * 1 - w2 + 1 size(KSP2a, 2) - w2 + 1];
-
-                    for n3 = [1:max(1, floor(w3 / ARG.patch_average_sub)):size(KSP2a, 3) * 1 - w3 + 1 size(KSP2a, 3) - w3 + 1];
-
-                        KSP2_tmp = KSP2a(:, [1:w2] + (n2 - 1), [1:w3] + (n3 - 1), :);
-                        tmp1 = reshape(KSP2_tmp, [], size(KSP2_tmp, 4));
-
-                        [U, S, V] = svd([(tmp1)], 'econ');
-                        S = diag(S);
-
-                        [idx] = sum(S < lambda2);
-
-                        if isempty(soft_thrs)
-                            energy_scrub = sqrt(sum(S .^ 1)). \ sqrt(sum(S(S < lambda2) .^ 1));
-                            S(S < lambda2) = 0;
-                            t = idx;
-                        elseif soft_thrs ~= 10;
-
-                            S = S - lambda2 * soft_thrs;
-                            S(S < 0) = 0;
-                            energy_scrub = 0;
-                            t = 1;
-
-                        elseif soft_thrs == 10 % USING MPPCA
-
-                            %  disp('test for zero entries')
-                            Test_mat = sum(tmp1, 2);
-                            MM0 = sum(Test_mat == 0);
-
-                            if MM0 > 1 & MM0 < 100
-                                %  2
-                            end
-
-                            centering = 0;
-                            MM = size(tmp1, 1) - MM0; % Correction for some zero entries
-
-                            if MM > 0
-                                NNN = size(tmp1, 2);
-                                R = min(MM, NNN);
-                                scaling = (max(MM, NNN) - (0:R - centering - 1)) / NNN;
-                                scaling = scaling(:);
-                                vals = S;
-                                vals = (vals) .^ 2 / NNN;
-                                % First estimation of Sigma^2;  Eq 1 from ISMRM presentation
-                                csum = cumsum(vals(R - centering:-1:1)); cmean = csum(R - centering:-1:1) ./ (R - centering:-1:1)'; sigmasq_1 = cmean ./ scaling;
-                                % Second estimation of Sigma^2; Eq 2 from ISMRM presentation
-                                gamma = (MM - (0:R - centering - 1)) / NNN;
-                                rangeMP = 4 * sqrt(gamma(:));
-                                rangeData = vals(1:R - centering) - vals(R - centering);
-                                sigmasq_2 = rangeData ./ rangeMP;
-                                t = find(sigmasq_2 < sigmasq_1, 1);
-                                % NOISE(1:size(KSP2a,1),[1:w2]+(n2-1),[1:w3]+(n3-1),1) = sigmasq_2(t);
-                                idx = size(S(t:end), 1);
-                                energy_scrub = sqrt(sum(S .^ 1)). \ sqrt(sum(S(t:end) .^ 1));
-                                S(t:end) = 0;
-                            else % all zero entries
-                                t = 1;
-                                energy_scrub = 0;
-                                sigmasq_2 = 0;
-                            end
-
-                        else
-                            S(max(1, end - floor(idx * soft_thrs)):end) = 0;
-                        end
-
-                        tmp1 = U * diag(S) * V';
-
-                        tmp1 = reshape(tmp1, size(KSP2_tmp));
-
-                        if patch_scale == 1
-                        else
-                            patch_scale = size(S, 1) - idx;
-                        end
-
-                        if isempty(t)
-                            t = 1;
-                        end % threshold removed all.
-
-                        if patch_avg == 1
-
-                            KSP2_tmp_update(:, [1:w2] + (n2 - 1), [1:w3] + (n3 - 1), :) = ...
-                                KSP2_tmp_update(:, [1:w2] + (n2 - 1), [1:w3] + (n3 - 1), :) +patch_scale * tmp1;
-                            KSP2_weight(:, [1:w2] + (n2 - 1), [1:w3] + (n3 - 1), :) = ...
-                                KSP2_weight(:, [1:w2] + (n2 - 1), [1:w3] + (n3 - 1), :) + patch_scale;
-                            KSP2_tmp_update_threshold(:, [1:w2] + (n2 - 1), [1:w3] + (n3 - 1), :) = ...
-                                KSP2_tmp_update_threshold(:, [1:w2] + (n2 - 1), [1:w3] + (n3 - 1), :) +idx;
-                            energy_removed(:, [1:w2] + (n2 - 1), [1:w3] + (n3 - 1), :) = ...
-                                energy_removed(:, [1:w2] + (n2 - 1), [1:w3] + (n3 - 1), :) +energy_scrub;
-
-                            SNR_weight(:, [1:w2] + (n2 - 1), [1:w3] + (n3 - 1), 1) = ...
-                                SNR_weight(:, [1:w2] + (n2 - 1), [1:w3] + (n3 - 1), 1) + S(1) ./ S(max(1, t - 1));
-
-                            try
-                                NOISE(1:size(KSP2a, 1), [1:w2] + (n2 - 1), [1:w3] + (n3 - 1), 1) = ...
-                                    NOISE(1:size(KSP2a, 1), [1:w2] + (n2 - 1), [1:w3] + (n3 - 1), 1) + sigmasq_2(t);
-                            catch
-                            end
-
-                        else
-                            KSP2_tmp_update(:, round(w2 / 2) + (n2 - 1), round(w3 / 2) + (n3 - 1), :) = ...
-                                KSP2_tmp_update(:, round(w2 / 2) + (n2 - 1), round(w3 / 2) + (n3 - 1), :) +patch_scale * tmp1(1, round(end / 2), round(end / 2), :);
-                            KSP2_weight(:, round(w2 / 2) + (n2 - 1), round(w3 / 2) + (n3 - 1), :) = ...
-                                KSP2_weight(:, round(w2 / 2) + (n2 - 1), round(w3 / 2) + (n3 - 1), :) +patch_scale;
-                            KSP2_tmp_update_threshold(:, round(w2 / 2) + (n2 - 1), round(w3 / 2) + (n3 - 1), :) = ...
-                                KSP2_tmp_update_threshold(:, round(w2 / 2) + (n2 - 1), round(w3 / 2) + (n3 - 1), :) +idx;
-                            energy_removed(:, round(w2 / 2) + (n2 - 1), round(w3 / 2) + (n3 - 1), :) = ...
-                                energy_removed(:, round(w2 / 2) + (n2 - 1), round(w3 / 2) + (n3 - 1), :) +energy_scrub;
-
-                            SNR_weight(:, round(w2 / 2) + (n2 - 1), round(w3 / 2) + (n3 - 1), 1) = ...
-                                SNR_weight(:, round(w2 / 2) + (n2 - 1), round(w3 / 2) + (n3 - 1), 1) + S(1) ./ S(max(1, t - 1));
-
-                            try
-                                NOISE(:, round(w2 / 2) + (n2 - 1), round(w3 / 2) + (n3 - 1), :) = ...
-                                    NOISE(:, round(w2 / 2) + (n2 - 1), round(w3 / 2) + (n3 - 1), :) + sigmasq_2(t);
-                            catch
-                            end
-
-                        end
-
-                        %            if MM0>1  & MM0<196
-
-                        %   [  sigmasq_2(t) MM0] %  2
-                        %            end
-
-                    end
-
-                end
-
-                return
+end
