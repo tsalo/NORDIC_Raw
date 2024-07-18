@@ -132,14 +132,6 @@ function NIFTI_NORDIC(fn_magn_in, fn_phase_in, fn_out, ARG)
         ARG.magnitude_only = 0; %
     end
 
-    if isfield(ARG, 'save_add_info');
-        % TS: Why is this here?
-    end %  additional information is saved in matlab file
-
-    if isfield(ARG, 'make_complex_nii');
-        % TS: Why is this here?
-    end %  two output NII files are saved
-
     if ~isfield(ARG, 'save_gfactor_map') % save out a map of a relative gfactor
         ARG.save_gfactor_map = []; %
     end
@@ -204,25 +196,6 @@ function NIFTI_NORDIC(fn_magn_in, fn_phase_in, fn_out, ARG)
         I_P = (single(I_P) ./ range_norm -range_center) * 2 * pi;
         II = single(I_M) .* exp(1i * I_P);
 
-        if 0
-            % TS: Why is this here?
-            if strmatch(info_phase.Datatype, 'uint16')
-                I_P = single(I_P) / phase_range * 2 * pi;
-                II = single(I_M) .* exp(1i * I_P);
-            elseif strmatch(info_phase.Datatype, 'int16')
-                I_P = (single(I_P) + 1 - (phase_range + 1) / 2) / (phase_range + 1) * 2 * pi;
-                II = single(I_M) .* exp(1i * I_P);
-            elseif strmatch(info_phase.Datatype, 'single')
-                phase_range_min = min(I_P(:));
-                range_norm = phase_range - phase_range_min;
-                range_center = (phase_range + phase_range_min) / range_norm * 1/2;
-                I_P = (single(I_P) ./ range_norm -range_center) * 2 * pi;
-                II = single(I_M) .* exp(1i * I_P);
-
-            end
-
-        end
-
         fprintf('Phase data range is %.2f to %.2f\n', min(I_P(:)), max(I_P(:)))
     else
 
@@ -258,12 +231,8 @@ function NIFTI_NORDIC(fn_magn_in, fn_phase_in, fn_out, ARG)
     ARG.ABSOLUTE_SCALE = min(TEMPVOL(TEMPVOL ~= 0));
     II = II ./ ARG.ABSOLUTE_SCALE;
 
-    %   load test_DATA
-    %  II=II(:,:,:,1:95);
-
     if size(II, 4) < 6
         disp('Too few volumes')
-        % return
     end
 
     KSP2 = II;
@@ -273,18 +242,9 @@ function NIFTI_NORDIC(fn_magn_in, fn_phase_in, fn_out, ARG)
     [idx] = find(tt > 0.95 * max(tt));
     meanphase = mean(KSP2(:, :, :, idx(1)), 4);
 
-    if 1
-        % TS: Why have an if statement if it's always going to be true?
-        disp('estimating slice-dependent phases ...')
-        meanphase = mean(KSP2(:, :, :, [1:end - ARG.noise_volume_last]), 4);
-
-        for nsl = 1:size(meanphase, 3);
-            % TS: Why is this here?
-            %meanphase2(:,:,nsl)=complex(  medfilt2(squeeze(real(meanphase(:,:,nsl))),[7 7]), medfilt2(squeeze(imag(meanphase(:,:,nsl))),[7 7]) );
-        end
-
-        meanphase = meanphase * ARG.phase_slice_average_for_kspace_centering;
-    end
+    disp('estimating slice-dependent phases ...')
+    meanphase = mean(KSP2(:, :, :, [1:end - ARG.noise_volume_last]), 4);
+    meanphase = meanphase * ARG.phase_slice_average_for_kspace_centering;
 
     for slice = matdim(3):-1:1
 
@@ -355,7 +315,6 @@ function NIFTI_NORDIC(fn_magn_in, fn_phase_in, fn_out, ARG)
         if (isempty(ARG.kernel_size_gfactor) | size(ARG.kernel_size_gfactor, 2) < 3)
             KSP2 = (KSP2(:, :, 1:end, 1:min(90, end), 1)); % should be at least 30 volumes
         else
-            % KSP2=(KSP2(:,:,1:end,1:min(ARG.kernel_size_gfactor(3),end),1));
             KSP2 = (KSP2(:, :, 1:end, 1:min(ARG.kernel_size_gfactor(4), end), 1));
 
         end
@@ -381,7 +340,6 @@ function NIFTI_NORDIC(fn_magn_in, fn_phase_in, fn_out, ARG)
     ARG.LLR_scale = 0;
     ARG.NVR_threshold = 1;
     ARG.soft_thrs = 10; % MPPCa   (When Noise varies)
-    %ARG.soft_thrs=[];  % NORDIC  (When noise is flat)
     KSP_weight = KSP2(:, :, :, 1) * 0;
     NOISE = KSP_weight;
     Component_threshold = KSP_weight;
@@ -396,7 +354,7 @@ function NIFTI_NORDIC(fn_magn_in, fn_phase_in, fn_out, ARG)
             KSP_processed(1, nw1:max(1, floor(ARG.kernel_size(1) / ARG.patch_average_sub)):end) = 2;
         end
 
-        KSP_processed(end) = 0; % disp
+        KSP_processed(end) = 0;
         QQ.KSP_processed = KSP_processed;
     end
 
@@ -406,10 +364,7 @@ function NIFTI_NORDIC(fn_magn_in, fn_phase_in, fn_out, ARG)
     QQ.ARG = ARG;
 
     for n1 = 1:size(QQ.KSP_processed, 2)
-        % fprintf( [num2str(n1) ' '])
         [KSP_recon, ~, KSP_weight, NOISE, Component_threshold, energy_removed, SNR_weight] = sub_LLR_Processing(KSP_recon, KSP2, ARG, n1, QQ, master_fast, KSP_weight, NOISE, Component_threshold, energy_removed, SNR_weight); % save all files
-        % fprintf( [num2str(n1) ' '])
-        % if mod(n1,20)==0; disp(' ');end
     end
 
     KSP_recon = KSP_recon ./ repmat((KSP_weight), [1 1 1 size(KSP2, 4)]);
@@ -437,8 +392,6 @@ function NIFTI_NORDIC(fn_magn_in, fn_phase_in, fn_out, ARG)
     if ARG.MP == 2;
         gfactor = ones(size(gfactor));
     end
-
-    % gfactor=ones(size(gfactor));
 
     if (ARG.save_gfactor_map == 2) | (ARG.save_gfactor_map == 1)
 
@@ -552,8 +505,6 @@ function NIFTI_NORDIC(fn_magn_in, fn_phase_in, fn_out, ARG)
         TT1(readout) = mean(reshape(KSP2(readout, :, :, :), [], 1));
     end
 
-    % ARG.measured_noise=median(TT([2:8 end-8:end-1]))
-
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     master_fast = 1;
     KSP_recon = 0 * KSP2;
@@ -573,8 +524,6 @@ function NIFTI_NORDIC(fn_magn_in, fn_phase_in, fn_out, ARG)
     QQ.KSP_processed = zeros(1, size(KSP2, 1) - ARG.kernel_size(1));
     ARG.patch_average = 0;
     ARG.patch_average_sub = ARG.NORDIC_patch_overlap;
-    % ARG.kernel_size=[7 7 7]; ARG.patch_average_sub=7;  MPPCA
-    % ARG.soft_thrs=10;  % MPPCa   (When Noise varies)
     ARG.LLR_scale = 1;
     ARG.NVR_threshold = 0;
 
@@ -619,7 +568,7 @@ function NIFTI_NORDIC(fn_magn_in, fn_phase_in, fn_out, ARG)
             KSP_processed(1, nw1:max(1, floor(ARG.kernel_size(1) / ARG.patch_average_sub)):end) = 2;
         end
 
-        KSP_processed(end) = 0; % disp
+        KSP_processed(end) = 0;
         QQ.KSP_processed = KSP_processed;
     end
 
@@ -631,7 +580,8 @@ function NIFTI_NORDIC(fn_magn_in, fn_phase_in, fn_out, ARG)
         [KSP_recon, ~, KSP_weight, NOISE, Component_threshold, energy_removed, SNR_weight] = sub_LLR_Processing(KSP_recon, KSP2, ARG, n1, QQ, master_fast, KSP_weight, NOISE, Component_threshold, energy_removed, SNR_weight); % save all files
     end
 
-    KSP_recon = KSP_recon ./ repmat((KSP_weight), [1 1 1 size(KSP2, 4)]); % Assumes that the combination is with N instead of sqrt(N). Works for NVR not MPPCA
+    % Assumes that the combination is with N instead of sqrt(N). Works for NVR not MPPCA
+    KSP_recon = KSP_recon ./ repmat((KSP_weight), [1 1 1 size(KSP2, 4)]);
     ARG.NOISE = sqrt(NOISE ./ KSP_weight);
     ARG.Component_threshold = Component_threshold ./ KSP_weight;
     ARG.energy_removed = energy_removed ./ KSP_weight;
@@ -669,15 +619,14 @@ function NIFTI_NORDIC(fn_magn_in, fn_phase_in, fn_out, ARG)
     end
 
     IMG2 = IMG2 .* ARG.ABSOLUTE_SCALE;
-
     IMG2(isnan(IMG2)) = 0;
 
     if isfield(ARG, 'make_complex_nii')
         IMG2_tmp = abs(IMG2(:, :, :, 1:end)); % remove g-factor and noise for DUAL 1
         IMG2_tmp(isnan(IMG2_tmp)) = 0;
-        tmp = sort(abs(IMG2_tmp(:))); sn_scale = 2 * tmp(round(0.99 * end)); %sn_scale=max();
+        tmp = sort(abs(IMG2_tmp(:)));
+        sn_scale = 2 * tmp(round(0.99 * end));
         gain_level = floor(log2(32000 / sn_scale));
-        %IMG2_tmp= int16(abs(IMG2_tmp)*2^gain_level);
 
         if ARG.full_dynamic_range == 0
             gain_level = 0;
@@ -694,12 +643,6 @@ function NIFTI_NORDIC(fn_magn_in, fn_phase_in, fn_out, ARG)
         niftiwrite((IMG2_tmp), [ARG.DIROUT fn_out 'magn.nii'], info)
 
         IMG2_tmp = angle(IMG2(:, :, :, 1:end));
-
-        if strmatch(info_phase.Datatype, 'int16')
-            % TS: Why is this here?
-            %    IMG2_tmp=IMG2_tmp+pi;
-        end
-
         IMG2_tmp = (IMG2_tmp / (2 * pi) + range_center) * range_norm;
 
         if strmatch(info_phase.Datatype, 'uint16')
@@ -708,21 +651,6 @@ function NIFTI_NORDIC(fn_magn_in, fn_phase_in, fn_out, ARG)
             IMG2_tmp = int16(IMG2_tmp);
         else
             IMG2_tmp = single((IMG2_tmp));
-        end
-
-        if 0
-            % TS: Why is this here?
-
-            if strmatch(info_phase.Datatype, 'uint16')
-                IMG2_tmp = IMG2_tmp / (2 * pi) * phase_range;
-                IMG2_tmp = uint16(abs(IMG2_tmp) * 2 ^ gain_level);
-            elseif strmatch(info_phase.Datatype, 'int16')
-                IMG2_tmp = IMG2_tmp / (2 * pi) * phase_range;
-                IMG2_tmp = int16((IMG2_tmp) * 2 ^ gain_level);
-            else
-                IMG2_tmp = single(abs(IMG2_tmp) * 2 ^ gain_level);
-            end
-
         end
 
         niftiwrite((IMG2_tmp), [ARG.DIROUT fn_out 'phase.nii'], info_phase)
@@ -783,35 +711,6 @@ function [KSP_recon, KSP2, KSP2_weight, NOISE, Component_threshold, energy_remov
         SNR_weight = [];
     end
 
-    %  QQ.KSP_processed  0 nothing done, 1 running, 2 saved 3 completed and  averaged
-
-    if master == 0 && ARG.patch_average == 0
-        OPTION = 'NO_master_NO_PA';
-
-    elseif master == 0 && ARG.patch_average == 1
-        OPTION = 'NO_master_PA';
-
-    elseif master == 1 && ARG.patch_average == 0
-        OPTION = 'master_NO_PA';
-
-    elseif master == 1 && ARG.patch_average == 1
-        OPTION = 'master_PA';
-
-    end
-
-    % TS: Why is this here?
-    switch OPTION
-
-        case 'NO_master_NO_PA'
-
-        case 'NO_master_PA'
-
-        case 'master_NO_PA'
-
-        case 'master_PA'
-
-    end
-
     if QQ.KSP_processed(1, n1) ~= 1 && QQ.KSP_processed(1, n1) ~= 3 % not being processed also not completed yet
 
         if QQ.KSP_processed(1, n1) == 2 && master == 1 %  processed but not added.
@@ -842,7 +741,6 @@ function [KSP_recon, KSP2, KSP2_weight, NOISE, Component_threshold, energy_remov
                 end
 
                 if ARG.patch_average == 1
-                    %  [DATA_full2, ~,NOISE, Component_threshold] =subfunction_loop_for_NVR_avg(KSP2a,ARG.kernel_size(3),ARG.kernel_size(2),ARG.kernel_size(1),lambda,1,ARG.soft_thrs);
                     [DATA_full2, KSP2_weight] = subfunction_loop_for_NVR_avg(KSP2a, ARG.kernel_size(3), ARG.kernel_size(2), ARG.kernel_size(1), lambda, 1, ARG.soft_thrs, KSP2_weight);
                 else
 
@@ -859,16 +757,11 @@ function [KSP_recon, KSP2, KSP2_weight, NOISE, Component_threshold, energy_remov
 
                     try
                         NOISE([1:ARG.kernel_size(1)] + (n1 - 1), :, :, :) = NOISE_tmp;
-                    catch
-                        % TS: Why is this here?
                     end
 
                     Component_threshold([1:ARG.kernel_size(1)] + (n1 - 1), :, :, :) = Component_threshold_tmp;
                     energy_removed([1:ARG.kernel_size(1)] + (n1 - 1), :, :, :) = energy_removed_tmp;
                     SNR_weight([1:ARG.kernel_size(1)] + (n1 - 1), :, :, :) = SNR_weight_tmp;
-                    % TS: Why is this here?
-                    %DATA_full=subfunction_loop_for_NVR(KSP2a,ARG.kernel_size(3),ARG.kernel_size(2),ARG.kernel_size(1),lambda);
-                    %DATA_full2(1, round(w2/2)+[1:size(DATA_full,1)],:,:  )=DATA_full;  % center plane only
                 end
 
             end
@@ -920,12 +813,6 @@ function [KSP2_tmp_update, KSP2_weight] = subfunction_loop_for_NVR_avg(KSP2a, w3
         KSP2_tmp_update = zeros(size(KSP2a(:, :, :, :)));
     end
 
-    % TS: Why is this here?
-    %   KSP2_weight=zeros(size(KSP2a(:,:,:,1)));
-    %   KSP2_tmp_update=zeros(size(KSP2a));
-
-    %   for n2=1:size(KSP2a,2)-w2+1;
-    %        for n3=1:size(KSP2a,3)-w3+1;
     for n2 = [1:max(1, floor(w2 / ARG.patch_average_sub)):size(KSP2a, 2) * 1 - w2 + 1 size(KSP2a, 2) - w2 + 1];
 
         for n3 = [1:max(1, floor(w3 / ARG.patch_average_sub)):size(KSP2a, 3) * 1 - w3 + 1 size(KSP2a, 3) - w3 + 1];
@@ -941,7 +828,6 @@ function [KSP2_tmp_update, KSP2_weight] = subfunction_loop_for_NVR_avg(KSP2a, w3
             if isempty(soft_thrs)
                 S(S < lambda2) = 0;
             elseif soft_thrs == 10 % USING MPPCA
-                %  disp('test for zero entries')
                 Test_mat = sum(tmp1, 2);
                 sum(Test_mat == 0)
 
@@ -999,7 +885,7 @@ function [KSP2_tmp_update, KSP2_weight, NOISE, KSP2_tmp_update_threshold, energy
 
     if ~exist('patch_avg')
         patch_avg = 1;
-    end %   patch_avg=0; means zero only
+    end
 
     if ~exist('soft_thrs')
         soft_thrs = [];
@@ -1011,7 +897,7 @@ function [KSP2_tmp_update, KSP2_weight, NOISE, KSP2_tmp_update_threshold, energy
         KSP2_weight = zeros(size(KSP2a(:, :, :, 1)));
     end
 
-    if ~exist('NOISE_tmp')' %  ~exist('NOISE_tmpKSP2_tmp_update')
+    if ~exist('NOISE_tmp')'
         NOISE_tmp = zeros(size(KSP2a(:, :, :, 1)));
     elseif isempty(KSP2_tmp_update)
         NOISE_tmp = zeros(size(KSP2a(:, :, :, 1)));
@@ -1036,7 +922,6 @@ function [KSP2_tmp_update, KSP2_weight, NOISE, KSP2_tmp_update_threshold, energy
     end
 
     KSP2_tmp_update = 0 * KSP2a;
-    %NOISE=[];
 
     for n2 = [1:max(1, floor(w2 / ARG.patch_average_sub)):size(KSP2a, 2) * 1 - w2 + 1 size(KSP2a, 2) - w2 + 1];
 
@@ -1059,14 +944,8 @@ function [KSP2_tmp_update, KSP2_weight, NOISE, KSP2_tmp_update_threshold, energy
                 energy_scrub = 0;
                 t = 1;
             elseif soft_thrs == 10 % USING MPPCA
-                %  disp('test for zero entries')
                 Test_mat = sum(tmp1, 2);
                 MM0 = sum(Test_mat == 0);
-
-                if MM0 > 1 & MM0 < 100
-                    % TS: Why is this here?
-                    %  2
-                end
 
                 centering = 0;
                 MM = size(tmp1, 1) - MM0; % Correction for some zero entries
@@ -1086,7 +965,6 @@ function [KSP2_tmp_update, KSP2_weight, NOISE, KSP2_tmp_update_threshold, energy
                     rangeData = vals(1:R - centering) - vals(R - centering);
                     sigmasq_2 = rangeData ./ rangeMP;
                     t = find(sigmasq_2 < sigmasq_1, 1);
-                    % NOISE(1:size(KSP2a,1),[1:w2]+(n2-1),[1:w3]+(n3-1),1) = sigmasq_2(t);
                     idx = size(S(t:end), 1);
                     energy_scrub = sqrt(sum(S .^ 1)). \ sqrt(sum(S(t:end) .^ 1));
                     S(t:end) = 0;
@@ -1104,15 +982,14 @@ function [KSP2_tmp_update, KSP2_weight, NOISE, KSP2_tmp_update_threshold, energy
 
             tmp1 = reshape(tmp1, size(KSP2_tmp));
 
-            if patch_scale == 1
-                % TS: Why is this here?
-            else
+            if patch_scale != 1
                 patch_scale = size(S, 1) - idx;
             end
 
             if isempty(t)
+                % threshold removed all.
                 t = 1;
-            end % threshold removed all.
+            end
 
             if patch_avg == 1
                 KSP2_tmp_update(:, [1:w2] + (n2 - 1), [1:w3] + (n3 - 1), :) = ...
@@ -1130,8 +1007,6 @@ function [KSP2_tmp_update, KSP2_weight, NOISE, KSP2_tmp_update_threshold, energy
                 try
                     NOISE(1:size(KSP2a, 1), [1:w2] + (n2 - 1), [1:w3] + (n3 - 1), 1) = ...
                         NOISE(1:size(KSP2a, 1), [1:w2] + (n2 - 1), [1:w3] + (n3 - 1), 1) + sigmasq_2(t);
-                catch
-                    % TS: Why is this here?
                 end
 
             else
@@ -1150,16 +1025,9 @@ function [KSP2_tmp_update, KSP2_weight, NOISE, KSP2_tmp_update_threshold, energy
                 try
                     NOISE(:, round(w2 / 2) + (n2 - 1), round(w3 / 2) + (n3 - 1), :) = ...
                         NOISE(:, round(w2 / 2) + (n2 - 1), round(w3 / 2) + (n3 - 1), :) + sigmasq_2(t);
-                catch
-                    % TS: Why is this here?
                 end
 
             end
-
-            % TS: Why is this here?
-            % if MM0>1  & MM0<196
-            %     [  sigmasq_2(t) MM0] %  2
-            % end
 
         end
 
