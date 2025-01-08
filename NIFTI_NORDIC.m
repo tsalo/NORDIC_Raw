@@ -747,6 +747,35 @@ if isfield(ARG,'save_add_info')
     if  ARG.save_add_info==1
         disp('saving additional info')
         save(fullfile(ARG.DIROUT, [fn_out '.mat']),'ARG2','ARG','-v7.3')
+
+        % Save out other maps
+        if ARG.use_generic_NII_read==0;
+            niftiwrite((ARG.NOISE),[ARG.DIROUT fn_out '_noise.nii'],info)
+        else
+            nii=make_nii(ARG.NOISE);
+            save_nii(nii, fullfile(ARG.DIROUT, [fn_out '_noise.nii']))
+        end
+
+        if ARG.use_generic_NII_read==0;
+            niftiwrite((ARG.Component_threshold),[ARG.DIROUT fn_out '_component_threshold.nii'],info)
+        else
+            nii=make_nii(ARG.Component_threshold);
+            save_nii(nii, fullfile(ARG.DIROUT, [fn_out '_component_threshold.nii']))
+        end
+
+        if ARG.use_generic_NII_read==0;
+            niftiwrite((ARG.energy_removed),[ARG.DIROUT fn_out '_energy_removed.nii'],info)
+        else
+            nii=make_nii(ARG.energy_removed);
+            save_nii(nii, fullfile(ARG.DIROUT, [fn_out '_energy_removed.nii']))
+        end
+
+        if ARG.use_generic_NII_read==0;
+            niftiwrite((ARG.SNR_weight),[ARG.DIROUT fn_out '_SNR.nii'],info)
+        else
+            nii=make_nii(ARG.SNR_weight);
+            save_nii(nii, fullfile(ARG.DIROUT, [fn_out '_SNR.nii']))
+        end
     end
 end
 
