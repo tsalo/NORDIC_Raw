@@ -144,6 +144,10 @@ if ~isfield(ARG,'save_gfactor_map') % save out a map of a relative gfactor
     ARG.save_gfactor_map=[]; %
 end
 
+% Apply slope and intercept scaling factors to data
+if ~isfield(ARG, 'scale')
+    ARG.scale = 0;
+end
 
 if isfield(ARG,'use_generic_NII_read') % save out a map of a relative gfactor
     if ARG.use_generic_NII_read==1
@@ -170,12 +174,23 @@ if ARG.magnitude_only~=1
     try
         info_phase=niftiinfo(fn_phase_in);
         info=niftiinfo(fn_magn_in);
+        safe_info=info;
+        safe_info.MultiplicativeScaling = 1;
+        safe_info.AdditiveOffset = 0;
     catch;  disp('The niftiinfo fails at reading the header')  ;end
 
 
     if ARG.use_generic_NII_read~=1
-        I_M=abs(single(niftiread(fn_magn_in)));
-        I_P=single(niftiread(fn_phase_in));
+        if ARG.scale ~= 1
+            I_M=abs(single(niftiread(fn_magn_in)));
+            I_P=single(niftiread(fn_phase_in));
+        else
+            I_M = abs((single(niftiread(fn_magn_in)) * info.MultiplicativeScaling) + info.AdditiveOffset);
+            I_P = (single(niftiread(fn_phase_in)) * info_phase.MultiplicativeScaling) + info_phase.AdditiveOffset;
+            info.MultiplicativeScaling = 1;
+            info.AdditiveOffset = 0;
+            info_phase.MultiplicativeScaling = 1;
+            info_phase.AdditiveOffset = 0;
     else
         try
             tmp=load_nii(fn_magn_in);
@@ -455,7 +470,7 @@ if ( ARG.save_gfactor_map==2 )  | ( ARG.save_gfactor_map==1 )
         g_IMG= single(abs(g_IMG)*2^gain_level);
     end
 
-    niftiwrite((g_IMG),[ARG.DIROUT 'gfactor_' fn_out(1:end) '.nii'], ...
+    niftiwrite((g_IMG),[ARG.DIROUT 'gfactor_' fn_out(1:end) '.nii'], safe_info, ...
         'Compressed', ARG.write_gzipped_niftis)
     if ARG.save_gfactor_map==2
         return
@@ -761,7 +776,7 @@ if isfield(ARG,'save_add_info')
 
         % Save out other maps
         if ARG.use_generic_NII_read==0;
-            niftiwrite((ARG.NOISE),[ARG.DIROUT fn_out '_noise.nii'],info, ...
+            niftiwrite((ARG.NOISE),[ARG.DIROUT fn_out '_noise.nii'],safe_info, ...
                 'Compressed', ARG.write_gzipped_niftis)
         else
             nii=make_nii(ARG.NOISE);
@@ -769,7 +784,7 @@ if isfield(ARG,'save_add_info')
         end
 
         if ARG.use_generic_NII_read==0;
-            niftiwrite((ARG.Component_threshold),[ARG.DIROUT fn_out '_component_threshold.nii'],info, ...
+            niftiwrite((ARG.Component_threshold),[ARG.DIROUT fn_out '_component_threshold.nii'],safe_info, ...
                 'Compressed', ARG.write_gzipped_niftis)
         else
             nii=make_nii(ARG.Component_threshold);
@@ -777,7 +792,7 @@ if isfield(ARG,'save_add_info')
         end
 
         if ARG.use_generic_NII_read==0;
-            niftiwrite((ARG.energy_removed),[ARG.DIROUT fn_out '_energy_removed.nii'],info, ...
+            niftiwrite((ARG.energy_removed),[ARG.DIROUT fn_out '_energy_removed.nii'],safe_info, ...
                 'Compressed', ARG.write_gzipped_niftis)
         else
             nii=make_nii(ARG.energy_removed);
@@ -785,7 +800,7 @@ if isfield(ARG,'save_add_info')
         end
 
         if ARG.use_generic_NII_read==0;
-            niftiwrite((ARG.SNR_weight),[ARG.DIROUT fn_out '_SNR.nii'],info, ...
+            niftiwrite((ARG.SNR_weight),[ARG.DIROUT fn_out '_SNR.nii'],safe_info, ...
                 'Compressed', ARG.write_gzipped_niftis)
         else
             nii=make_nii(ARG.SNR_weight);
