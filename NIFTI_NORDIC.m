@@ -174,9 +174,6 @@ if ARG.magnitude_only~=1
     try
         info_phase=niftiinfo(fn_phase_in);
         info=niftiinfo(fn_magn_in);
-        safe_info=info;
-        safe_info.MultiplicativeScaling = 1;
-        safe_info.AdditiveOffset = 0;
     catch;  disp('The niftiinfo fails at reading the header')  ;end
 
 
@@ -471,7 +468,7 @@ if ( ARG.save_gfactor_map==2 )  | ( ARG.save_gfactor_map==1 )
         g_IMG= single(abs(g_IMG)*2^gain_level);
     end
 
-    niftiwrite((g_IMG),[ARG.DIROUT 'gfactor_' fn_out(1:end) '.nii'], safe_info, ...
+    niftiwrite((g_IMG),[ARG.DIROUT 'gfactor_' fn_out(1:end) '.nii'], ...
         'Compressed', ARG.write_gzipped_niftis)
     if ARG.save_gfactor_map==2
         return
@@ -777,7 +774,7 @@ if isfield(ARG,'save_add_info')
 
         % Save out other maps
         if ARG.use_generic_NII_read==0;
-            niftiwrite((ARG.NOISE),[ARG.DIROUT fn_out '_noise.nii'],safe_info, ...
+            niftiwrite((ARG.NOISE),[ARG.DIROUT fn_out '_noise.nii'], ...
                 'Compressed', ARG.write_gzipped_niftis)
         else
             nii=make_nii(ARG.NOISE);
@@ -785,7 +782,7 @@ if isfield(ARG,'save_add_info')
         end
 
         if ARG.use_generic_NII_read==0;
-            niftiwrite((ARG.Component_threshold),[ARG.DIROUT fn_out '_component_threshold.nii'],safe_info, ...
+            niftiwrite((ARG.Component_threshold),[ARG.DIROUT fn_out '_component_threshold.nii'], ...
                 'Compressed', ARG.write_gzipped_niftis)
         else
             nii=make_nii(ARG.Component_threshold);
@@ -793,7 +790,7 @@ if isfield(ARG,'save_add_info')
         end
 
         if ARG.use_generic_NII_read==0;
-            niftiwrite((ARG.energy_removed),[ARG.DIROUT fn_out '_energy_removed.nii'],safe_info, ...
+            niftiwrite((ARG.energy_removed),[ARG.DIROUT fn_out '_energy_removed.nii'], ...
                 'Compressed', ARG.write_gzipped_niftis)
         else
             nii=make_nii(ARG.energy_removed);
@@ -801,7 +798,7 @@ if isfield(ARG,'save_add_info')
         end
 
         if ARG.use_generic_NII_read==0;
-            niftiwrite((ARG.SNR_weight),[ARG.DIROUT fn_out '_SNR.nii'],safe_info, ...
+            niftiwrite((ARG.SNR_weight),[ARG.DIROUT fn_out '_SNR.nii'], ...
                 'Compressed', ARG.write_gzipped_niftis)
         else
             nii=make_nii(ARG.SNR_weight);
