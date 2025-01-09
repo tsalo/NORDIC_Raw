@@ -189,6 +189,8 @@ if ARG.magnitude_only~=1
             info_phase.MultiplicativeScaling = 1;
             info_phase.AdditiveOffset = 0;
         end
+        info.Datatype = 'single';
+        info_phase.Datatype = 'single';
     else
         try
             tmp=load_nii(fn_magn_in);
