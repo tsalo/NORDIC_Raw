@@ -191,6 +191,7 @@ if ARG.magnitude_only~=1
             info.AdditiveOffset = 0;
             info_phase.MultiplicativeScaling = 1;
             info_phase.AdditiveOffset = 0;
+        end
     else
         try
             tmp=load_nii(fn_magn_in);
